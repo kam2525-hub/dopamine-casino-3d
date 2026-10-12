@@ -13,6 +13,19 @@
       50% { filter: drop-shadow(0 0 25px rgba(168, 85, 247, 1)); }
     }
     .neon-pulse { animation: pulse-neon 1.2s infinite; }
+    
+    /* 紙吹雪パーティクルアニメーション */
+    .confetti-piece {
+      position: absolute;
+      width: 10px;
+      height: 14px;
+      pointer-events: none;
+      animation: fall linear forwards;
+    }
+    @keyframes fall {
+      0% { transform: translateY(-50px) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(105vh) rotate(720deg); opacity: 0; }
+    }
   </style>
 </head>
 <body class="bg-black text-white overflow-hidden select-none font-sans">
@@ -20,10 +33,13 @@
   <!-- 3D Viewport Canvas -->
   <div id="canvas-container" class="w-screen h-screen absolute inset-0 z-0"></div>
 
+  <!-- 紙吹雪・コイン吹き出しコンテナ -->
+  <div id="confettiContainer" class="fixed inset-0 pointer-events-none z-40 overflow-hidden"></div>
+
   <!-- HUD: 所持金 & ミニマップ & ヘッダー -->
   <div class="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-10 pointer-events-none">
     <!-- チップ残高 -->
-    <div class="pointer-events-auto bg-slate-950/80 backdrop-blur-md border border-purple-500/40 rounded-2xl p-3 px-5 shadow-[0_0_30px_rgba(168,85,247,0.3)] flex items-center gap-3">
+    <div class="pointer-events-auto bg-slate-950/85 backdrop-blur-md border border-purple-500/40 rounded-2xl p-3 px-5 shadow-[0_0_35px_rgba(168,85,247,0.35)] flex items-center gap-3">
       <div class="text-3xl">💎</div>
       <div>
         <div class="text-[10px] text-purple-400 font-bold tracking-widest uppercase">CASINO CHIPS</div>
@@ -34,11 +50,23 @@
       </button>
     </div>
 
-    <!-- 案内テキスト -->
-    <div class="hidden sm:flex bg-slate-950/80 backdrop-blur-md border border-slate-800 rounded-2xl p-3 px-4 text-xs text-slate-300 items-center gap-4">
+    <!-- コントロールボタン群 (BGM・視点切替) -->
+    <div class="pointer-events-auto flex items-center gap-2">
+      <button id="bgmToggleBtn" class="bg-slate-950/85 backdrop-blur-md border border-purple-500/30 hover:border-pink-500 text-xs px-3.5 py-2.5 rounded-xl font-bold flex items-center gap-1.5 shadow-lg active:scale-95 transition-all">
+        <span id="bgmIcon">🎵</span> <span id="bgmText">BGM: OFF</span>
+      </button>
+
+      <button id="cameraViewBtn" class="bg-slate-950/85 backdrop-blur-md border border-purple-500/30 hover:border-cyan-500 text-xs px-3.5 py-2.5 rounded-xl font-bold flex items-center gap-1.5 shadow-lg active:scale-95 transition-all text-cyan-300">
+        🎥 視点: 一人称
+      </button>
+    </div>
+
+    <!-- ガイド案内（デスクトップ） -->
+    <div class="hidden md:flex bg-slate-950/80 backdrop-blur-md border border-slate-800 rounded-2xl p-2.5 px-4 text-xs text-slate-300 items-center gap-4">
       <div>🏃 <span class="font-bold text-white">WASD</span>: 移動</div>
       <div>👀 <span class="font-bold text-white">ドラッグ</span>: 視点回転</div>
       <div>💡 <span class="font-bold text-pink-400">[E]</span>: 台をプレイ</div>
+      <div>🎥 <span class="font-bold text-cyan-400">[V]</span>: アバター視点</div>
     </div>
   </div>
 
@@ -49,19 +77,17 @@
     <div class="text-xs text-pink-400 font-bold mt-1">タップ または [E] キーでプレイ！</div>
   </div>
 
-  <!-- モバイル用バーチャルコントローラー（スマホ操作対応） -->
+  <!-- モバイル用バーチャルコントローラー -->
   <div id="mobileControls" class="absolute bottom-6 left-6 right-6 flex items-center justify-between z-10 sm:hidden pointer-events-none">
-    <!-- ジョイスティック移動パッド -->
     <div id="touchJoy" class="w-28 h-28 bg-white/10 backdrop-blur rounded-full border border-white/20 relative pointer-events-auto flex items-center justify-center">
       <div id="touchKnob" class="w-12 h-12 bg-pink-500/80 rounded-full shadow-lg"></div>
     </div>
-    <!-- アクションボタン -->
     <button id="mobileActionBtn" class="w-20 h-20 bg-gradient-to-tr from-pink-600 to-purple-600 rounded-full font-black text-sm shadow-xl shadow-pink-600/50 pointer-events-auto active:scale-90 flex items-center justify-center">
       PLAY
     </button>
   </div>
 
-  <!-- ================= 各ミニゲームモーダル UI ================= -->
+  <!-- ================= ミニゲーム モーダル一覧 ================= -->
 
   <!-- 1. スロットマシン モーダル -->
   <div id="slotModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-30 hidden">
@@ -70,14 +96,12 @@
       <div class="text-3xl mb-1">🎰 MEGA SLOTS</div>
       <div class="text-xs text-purple-300 font-bold mb-4">777 で 50倍ジャックポット！</div>
 
-      <!-- スロットリール画面 -->
       <div class="flex items-center gap-3 bg-black border-4 border-pink-500/60 rounded-2xl p-5 mb-5 shadow-inner">
         <div id="slotReel1" class="w-20 h-24 bg-slate-800 rounded-xl flex items-center justify-center text-5xl font-black shadow-lg">🍒</div>
         <div id="slotReel2" class="w-20 h-24 bg-slate-800 rounded-xl flex items-center justify-center text-5xl font-black shadow-lg">🍒</div>
         <div id="slotReel3" class="w-20 h-24 bg-slate-800 rounded-xl flex items-center justify-center text-5xl font-black shadow-lg">🍒</div>
       </div>
 
-      <!-- ベット選択 -->
       <div class="flex items-center gap-2 mb-4 w-full">
         <span class="text-xs text-slate-400">BET:</span>
         <button class="slotBetBtn flex-1 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 rounded-lg text-xs font-bold font-mono border border-purple-500/30" data-bet="1000">1,000</button>
@@ -98,13 +122,11 @@
       <div class="text-3xl mb-1">🎡 NEON ROULETTE</div>
       <div class="text-xs text-emerald-300 font-bold mb-4">赤・黒・緑0にチップを賭けろ！</div>
 
-      <!-- ルーレットホイール表示 -->
       <div class="relative w-36 h-36 rounded-full border-4 border-amber-400 bg-slate-950 flex items-center justify-center mb-4 shadow-xl">
         <div id="rouletteWheel" class="text-4xl font-black transition-transform duration-1000">🎡</div>
         <div id="rouletteResult" class="absolute inset-0 flex items-center justify-center text-3xl font-black opacity-0 transition-opacity">--</div>
       </div>
 
-      <!-- ベットエリア -->
       <div class="grid grid-cols-3 gap-2 w-full mb-4">
         <button class="rouletteBetChoice p-3 bg-red-600 hover:bg-red-500 rounded-xl font-black text-sm border border-red-400 active:scale-95" data-choice="RED">赤 (x2)</button>
         <button class="rouletteBetChoice p-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-black text-sm border border-emerald-400 active:scale-95" data-choice="GREEN">緑0 (x14)</button>
@@ -119,21 +141,19 @@
     </div>
   </div>
 
-  <!-- 3. クラッシュ・ロケット モーダル（チキンレース） -->
+  <!-- 3. クラッシュ・ロケット モーダル -->
   <div id="crashModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-30 hidden">
     <div class="relative w-full max-w-md bg-slate-900 border-2 border-cyan-500 rounded-3xl p-6 shadow-[0_0_60px_rgba(6,182,212,0.4)] flex flex-col items-center">
       <button class="closeModalBtn absolute top-4 right-4 text-slate-400 hover:text-white text-2xl font-black">✕</button>
       <div class="text-3xl mb-1">🚀 CRASH ROCKET</div>
       <div class="text-xs text-cyan-300 font-bold mb-4">倍率が上がる！爆発する前に利確しろ！</div>
 
-      <!-- ロケット倍率表示画面 -->
       <div class="w-full h-44 bg-slate-950 border-2 border-cyan-500/40 rounded-2xl flex flex-col items-center justify-center relative overflow-hidden mb-4 shadow-inner">
         <div id="rocketIcon" class="text-5xl transition-transform duration-75">🚀</div>
         <div id="multiplierDisplay" class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-pink-400 font-mono mt-1">1.00x</div>
         <div id="crashStatus" class="text-xs font-bold text-slate-400 mt-1">ベットしてスタート</div>
       </div>
 
-      <!-- アクションボタン -->
       <div class="flex gap-2 w-full">
         <button id="startCrashBtn" class="flex-1 py-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 active:scale-95 rounded-2xl text-sm font-black tracking-wider shadow-lg shadow-cyan-600/30">
           BET 5,000 & 発射！
@@ -145,14 +165,80 @@
     </div>
   </div>
 
-  <!-- 4. PVP VIP対戦 モーダル (PeerJS) -->
+  <!-- 4. ブラックジャック モーダル [NEW] -->
+  <div id="blackjackModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-30 hidden">
+    <div class="relative w-full max-w-lg bg-slate-900 border-2 border-indigo-500 rounded-3xl p-6 shadow-[0_0_60px_rgba(99,102,241,0.4)] flex flex-col items-center">
+      <button class="closeModalBtn absolute top-4 right-4 text-slate-400 hover:text-white text-2xl font-black">✕</button>
+      <div class="text-3xl mb-1">🃏 NEON BLACKJACK</div>
+      <div class="text-xs text-indigo-300 font-bold mb-4">ディーラーと勝負！手札合計「21」を目指せ！</div>
+
+      <!-- ディーラー手札 -->
+      <div class="w-full bg-slate-950 border border-indigo-500/30 rounded-2xl p-3 mb-3 text-center">
+        <div class="text-[10px] text-slate-400 font-bold uppercase mb-1">DEALER (<span id="dealerScore">?</span>)</div>
+        <div id="dealerCards" class="flex items-center justify-center gap-2 min-h-[50px] text-2xl">
+          <span class="px-3 py-1 bg-slate-800 rounded-lg border border-slate-700">🂠</span>
+          <span class="px-3 py-1 bg-slate-800 rounded-lg border border-slate-700">🂠</span>
+        </div>
+      </div>
+
+      <!-- プレイヤー手札 -->
+      <div class="w-full bg-slate-950 border border-indigo-500/30 rounded-2xl p-3 mb-4 text-center">
+        <div class="text-[10px] text-cyan-400 font-bold uppercase mb-1">YOU (<span id="playerScore">0</span>)</div>
+        <div id="playerCards" class="flex items-center justify-center gap-2 min-h-[50px] text-2xl">
+          <span class="px-3 py-1 bg-slate-800 rounded-lg border border-slate-700">🂠</span>
+          <span class="px-3 py-1 bg-slate-800 rounded-lg border border-slate-700">🂠</span>
+        </div>
+      </div>
+
+      <!-- メッセージ表示 -->
+      <div id="bjMessage" class="text-sm font-black text-amber-300 mb-3 text-center min-h-[20px]">
+        BET 5,000 でディール開始！
+      </div>
+
+      <!-- アクションボタン -->
+      <div class="flex gap-2 w-full">
+        <button id="bjDealBtn" class="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 active:scale-95 rounded-xl text-xs font-black tracking-wider">
+          DEAL (5,000)
+        </button>
+        <button id="bjHitBtn" disabled class="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-30 active:scale-95 rounded-xl text-xs font-black tracking-wider">
+          HIT (もう1枚)
+        </button>
+        <button id="bjStandBtn" disabled class="flex-1 py-3 bg-amber-600 hover:bg-amber-500 disabled:opacity-30 active:scale-95 rounded-xl text-xs font-black tracking-wider">
+          STAND (勝負)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. インフレパチンコ モーダル [NEW] -->
+  <div id="pachinkoModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-2 z-30 hidden">
+    <div class="relative w-full max-w-[400px] bg-slate-900 border-2 border-pink-500 rounded-3xl p-4 shadow-[0_0_60px_rgba(236,72,153,0.4)] flex flex-col items-center">
+      <button class="closeModalBtn absolute top-3 right-4 text-slate-400 hover:text-white text-2xl font-black">✕</button>
+      <div class="text-xl font-black mb-1">💥 DOPAMINE PACHINKO</div>
+      <div class="text-[10px] text-pink-300 font-bold mb-2">1発 1,000 チップ！分裂＆JACKPOTで大量回収！</div>
+
+      <div class="relative w-full aspect-[9/12] bg-slate-950 rounded-2xl border border-purple-500/30 overflow-hidden cursor-crosshair">
+        <canvas id="pachinkoCanvas" class="w-full h-full block"></canvas>
+      </div>
+
+      <div class="flex gap-2 w-full mt-2">
+        <button id="pachinkoDropBtn" class="flex-1 py-3 bg-gradient-to-r from-pink-600 to-purple-600 active:scale-95 rounded-xl text-xs font-black">
+          🚀 1発発射 (1,000)
+        </button>
+        <button id="pachinkoAutoBtn" class="px-4 py-3 bg-slate-800 border border-cyan-500/40 text-cyan-300 rounded-xl text-xs font-bold">
+          連射: OFF
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. PVP VIP対戦 モーダル (PeerJS) -->
   <div id="pvpModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-30 hidden">
     <div class="relative w-full max-w-md bg-slate-900 border-2 border-amber-500 rounded-3xl p-6 shadow-[0_0_60px_rgba(245,158,11,0.4)] flex flex-col items-center">
       <button class="closeModalBtn absolute top-4 right-4 text-slate-400 hover:text-white text-2xl font-black">✕</button>
       <div class="text-3xl mb-1">⚔️ PVP VIP ARENA</div>
       <div class="text-xs text-amber-300 font-bold mb-4">友達とオンラインで全財産ダイス勝負！</div>
 
-      <!-- ルーム作成・参加 -->
       <div class="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 mb-4 text-xs">
         <div class="text-slate-400 mb-1">あなたのルームID (共有用):</div>
         <div id="myPeerId" class="text-amber-300 font-mono font-bold select-all break-all mb-3">接続中...</div>
@@ -163,7 +249,6 @@
         </div>
       </div>
 
-      <!-- 対戦ステータス -->
       <div id="pvpStatusBox" class="w-full bg-slate-950 border border-amber-500/30 rounded-2xl p-4 text-center mb-4">
         <div id="pvpStatusText" class="text-slate-400 text-xs">友達にルームIDを共有するか、接続してください</div>
         <div class="flex items-center justify-around mt-3">
@@ -186,8 +271,12 @@
   </div>
 
   <script>
-    // --- Web Audio API (効果音) ---
+    // --- Web Audio API & プロシージャル店内サイバーBGM ---
     let audioCtx = null;
+    let bgmOscList = [];
+    let isBgmPlaying = false;
+    let bgmTimer = null;
+
     function initAudio() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -210,11 +299,76 @@
       } catch(e) {}
     }
 
+    // 豪華ジャックポットファンファーレ
     function playWinSound() {
       if (!audioCtx) return;
-      [523.25, 659.25, 783.99, 1046.50].forEach((f, idx) => {
-        setTimeout(() => playTone(f, 'triangle', 0.25, 0.15), idx * 80);
+      triggerConfetti();
+      triggerScreenShake(15);
+      [523.25, 659.25, 783.99, 1046.50, 1318.51].forEach((f, idx) => {
+        setTimeout(() => playTone(f, 'triangle', 0.35, 0.2), idx * 70);
       });
+    }
+
+    // プロシージャル サイバーカジノBGMループ
+    const bgmChords = [
+      [130.81, 164.81, 196.00], // C
+      [146.83, 174.61, 220.00], // Dm
+      [164.81, 196.00, 246.94], // Em
+      [174.61, 220.00, 261.63], // F
+    ];
+    let bgmStep = 0;
+
+    function toggleBGM() {
+      initAudio();
+      isBgmPlaying = !isBgmPlaying;
+      const btnText = document.getElementById('bgmText');
+      btnText.textContent = `BGM: ${isBgmPlaying ? 'ON 🎶' : 'OFF'}`;
+
+      if (isBgmPlaying) {
+        startBgmLoop();
+      } else {
+        if (bgmTimer) clearInterval(bgmTimer);
+      }
+    }
+
+    function startBgmLoop() {
+      if (bgmTimer) clearInterval(bgmTimer);
+      bgmTimer = setInterval(() => {
+        if (!isBgmPlaying || !audioCtx) return;
+        const chord = bgmChords[bgmStep % bgmChords.length];
+        bgmStep++;
+
+        // コードパッド
+        chord.forEach(f => playTone(f * 2, 'sine', 0.45, 0.025));
+        // ビート・ハット風ノイズ
+        playTone(1800, 'triangle', 0.04, 0.015);
+        if (bgmStep % 2 === 0) playTone(75, 'sawtooth', 0.15, 0.06); // キック
+      }, 350);
+    }
+
+    document.getElementById('bgmToggleBtn').addEventListener('click', toggleBGM);
+
+    // --- 演出強化: 画面揺れ & 紙吹雪パーティクル ---
+    let screenShakeAmount = 0;
+    function triggerScreenShake(intensity = 12) {
+      screenShakeAmount = intensity;
+    }
+
+    function triggerConfetti(count = 45) {
+      const container = document.getElementById('confettiContainer');
+      const colors = ['#f43f5e', '#ec4899', '#a855f7', '#06b6d4', '#10b981', '#facc15', '#ffffff'];
+      for (let i = 0; i < count; i++) {
+        const piece = document.createElement('div');
+        piece.className = 'confetti-piece';
+        piece.style.left = Math.random() * 100 + 'vw';
+        piece.style.top = '-20px';
+        piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        piece.style.animationDuration = (Math.random() * 2 + 1.5) + 's';
+        piece.style.animationDelay = (Math.random() * 0.5) + 's';
+        container.appendChild(piece);
+
+        setTimeout(() => piece.remove(), 4000);
+      }
     }
 
     // --- ゲーム共通データ ---
@@ -233,7 +387,7 @@
       alert('ATMから 20,000 チップを引き出しました！');
     });
 
-    // --- Three.js 3D カジノワールド ---
+    // --- Three.js 3D カジノワールド & アバター ---
     const container = document.getElementById('canvas-container');
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x05050c);
@@ -246,93 +400,109 @@
     container.appendChild(renderer.domElement);
 
     // ライティング
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-    scene.add(ambientLight);
-
-    const centerLight = new THREE.PointLight(0xa855f7, 2.5, 40);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+    const centerLight = new THREE.PointLight(0xa855f7, 2.5, 45);
     centerLight.position.set(0, 8, 0);
     scene.add(centerLight);
 
-    // 床（ネオングリッドカーペット）
-    const floorGeo = new THREE.PlaneGeometry(80, 80, 40, 40);
-    const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x0a0a16,
-      roughness: 0.2,
-      metalness: 0.8,
-      wireframe: false
-    });
+    // 床 & グリッド
+    const floorGeo = new THREE.PlaneGeometry(80, 80);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x0a0a16, roughness: 0.2, metalness: 0.8 });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
-    // ネオングリッド線
     const grid = new THREE.GridHelper(80, 40, 0xec4899, 0x3b82f6);
     grid.position.y = 0.02;
     scene.add(grid);
 
-    // シャンデリア（天井の光輪）
-    const ringGeo = new THREE.TorusGeometry(8, 0.2, 16, 50);
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0xec4899 });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
+    // 天井シャンデリア
+    const ringGeo = new THREE.TorusGeometry(8, 0.25, 16, 50);
+    const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xec4899 }));
     ring.rotation.x = Math.PI / 2;
     ring.position.set(0, 10, 0);
     scene.add(ring);
 
-    // カジノ台データリスト
+    // 3Dアバターキャラクター（三人称視点用）
+    const avatarGroup = new THREE.Group();
+    // 胴体
+    const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.2, 0.5), new THREE.MeshStandardMaterial({ color: 0x3b82f6, metalness: 0.8 }));
+    bodyMesh.position.y = 1.1;
+    avatarGroup.add(bodyMesh);
+    // 頭部
+    const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 16), new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.2 }));
+    headMesh.position.y = 1.9;
+    avatarGroup.add(headMesh);
+    // サイバーバイザー（光る目）
+    const visorMesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.15, 0.2), new THREE.MeshBasicMaterial({ color: 0xec4899 }));
+    visorMesh.position.set(0, 1.9, -0.28);
+    avatarGroup.add(visorMesh);
+
+    scene.add(avatarGroup);
+
+    // カジノ台データリスト（新台: パチンコ・ブラックジャック追加）
     const stations = [
-      { id: 'slot', name: 'MEGA SLOTS', icon: '🎰', pos: [-12, 1.2, -10], color: 0xec4899 },
-      { id: 'roulette', name: 'NEON ROULETTE', icon: '🎡', pos: [12, 1.2, -10], color: 0x10b981 },
-      { id: 'crash', name: 'CRASH ROCKET', icon: '🚀', pos: [-12, 1.2, 10], color: 0x06b6d4 },
-      { id: 'pvp', name: 'PVP VIP ARENA', icon: '⚔️', pos: [12, 1.2, 10], color: 0xf59e0b },
-      { id: 'atm', name: 'ATM (無料補給)', icon: '🏧', pos: [0, 1.2, -18], color: 0x3b82f6 }
+      { id: 'slot', name: 'MEGA SLOTS', icon: '🎰', pos: [-14, 1.2, -10], color: 0xec4899 },
+      { id: 'roulette', name: 'NEON ROULETTE', icon: '🎡', pos: [14, 1.2, -10], color: 0x10b981 },
+      { id: 'crash', name: 'CRASH ROCKET', icon: '🚀', pos: [-14, 1.2, 10], color: 0x06b6d4 },
+      { id: 'blackjack', name: 'NEON BLACKJACK', icon: '🃏', pos: [0, 1.2, 12], color: 0x6366f1 },
+      { id: 'pachinko', name: 'DOPAMINE PACHINKO', icon: '💥', pos: [0, 1.2, -12], color: 0xf43f5e },
+      { id: 'pvp', name: 'PVP VIP ARENA', icon: '⚔️', pos: [14, 1.2, 10], color: 0xf59e0b },
+      { id: 'atm', name: 'ATM (無料補給)', icon: '🏧', pos: [-6, 1.2, -20], color: 0x3b82f6 }
     ];
 
     const stationMeshes = [];
 
     stations.forEach(st => {
-      // 台座
       const baseGeo = new THREE.CylinderGeometry(2.2, 2.4, 2.2, 16);
-      const baseMat = new THREE.MeshStandardMaterial({
-        color: 0x1e1e2e,
-        metalness: 0.7,
-        roughness: 0.3
-      });
+      const baseMat = new THREE.MeshStandardMaterial({ color: 0x1e1e2e, metalness: 0.7, roughness: 0.3 });
       const mesh = new THREE.Mesh(baseGeo, baseMat);
       mesh.position.set(...st.pos);
       scene.add(mesh);
 
-      // 台上の発光シンボル
       const topGeo = new THREE.SphereGeometry(0.8, 16, 16);
       const topMat = new THREE.MeshBasicMaterial({ color: st.color, wireframe: true });
       const topMesh = new THREE.Mesh(topGeo, topMat);
       topMesh.position.set(st.pos[0], st.pos[1] + 2.2, st.pos[2]);
       scene.add(topMesh);
 
-      // 台の照明
-      const spot = new THREE.PointLight(st.color, 2, 8);
+      const spot = new THREE.PointLight(st.color, 2.2, 9);
       spot.position.set(st.pos[0], st.pos[1] + 3, st.pos[2]);
       scene.add(spot);
 
       stationMeshes.push({ ...st, mesh, topMesh });
     });
 
-    // プレイヤーカメラ初期設定
-    camera.position.set(0, 2.2, 8);
+    // 視点モード管理 (FPS 一人称 / TPS 三人称)
+    let isThirdPerson = false;
+    const cameraViewBtn = document.getElementById('cameraViewBtn');
+
+    function toggleCameraView() {
+      isThirdPerson = !isThirdPerson;
+      cameraViewBtn.textContent = `🎥 視点: ${isThirdPerson ? '三人称 (TPS)' : '一人称 (FPS)'}`;
+      cameraViewBtn.className = isThirdPerson
+        ? 'bg-slate-950/85 backdrop-blur-md border border-cyan-500 text-xs px-3.5 py-2.5 rounded-xl font-bold flex items-center gap-1.5 shadow-lg active:scale-95 transition-all text-cyan-300'
+        : 'bg-slate-950/85 backdrop-blur-md border border-purple-500/30 text-xs px-3.5 py-2.5 rounded-xl font-bold flex items-center gap-1.5 shadow-lg active:scale-95 transition-all text-slate-300';
+      avatarGroup.visible = isThirdPerson;
+    }
+    cameraViewBtn.addEventListener('click', toggleCameraView);
+    avatarGroup.visible = false;
+
+    // プレイヤー位置 & 視点
+    let playerPos = new THREE.Vector3(0, 0, 0);
     let cameraAngleY = 0;
     let cameraAngleX = 0;
 
-    // 移動キー入力
     const keys = {};
     window.addEventListener('keydown', e => {
       keys[e.key.toLowerCase()] = true;
       if (e.key.toLowerCase() === 'e') triggerActiveStation();
+      if (e.key.toLowerCase() === 'v') toggleCameraView();
     });
     window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-    // マウスドラッグ視点回転
     let isMouseDown = false;
-    let lastMouseX = 0;
-    let lastMouseY = 0;
+    let lastMouseX = 0, lastMouseY = 0;
 
     window.addEventListener('mousedown', e => {
       if (e.target.closest('#canvas-container')) {
@@ -367,8 +537,8 @@
       let minDist = 4.2;
 
       stationMeshes.forEach(st => {
-        const dx = camera.position.x - st.pos[0];
-        const dz = camera.position.z - st.pos[2];
+        const dx = playerPos.x - st.pos[0];
+        const dz = playerPos.z - st.pos[2];
         const dist = Math.sqrt(dx * dx + dz * dz);
         if (dist < minDist) {
           minDist = dist;
@@ -395,6 +565,11 @@
       if (activeStation.id === 'slot') document.getElementById('slotModal').classList.remove('hidden');
       else if (activeStation.id === 'roulette') document.getElementById('rouletteModal').classList.remove('hidden');
       else if (activeStation.id === 'crash') document.getElementById('crashModal').classList.remove('hidden');
+      else if (activeStation.id === 'blackjack') document.getElementById('blackjackModal').classList.remove('hidden');
+      else if (activeStation.id === 'pachinko') {
+        document.getElementById('pachinkoModal').classList.remove('hidden');
+        initPachinko();
+      }
       else if (activeStation.id === 'pvp') document.getElementById('pvpModal').classList.remove('hidden');
       else if (activeStation.id === 'atm') {
         updateChips(30000);
@@ -405,10 +580,9 @@
     interactPrompt.addEventListener('click', triggerActiveStation);
     document.getElementById('mobileActionBtn').addEventListener('click', triggerActiveStation);
 
-    // モーダルを閉じる共通処理
     document.querySelectorAll('.closeModalBtn').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('#slotModal, #rouletteModal, #crashModal, #pvpModal').forEach(m => m.classList.add('hidden'));
+        document.querySelectorAll('#slotModal, #rouletteModal, #crashModal, #blackjackModal, #pachinkoModal, #pvpModal').forEach(m => m.classList.add('hidden'));
       });
     });
 
@@ -446,7 +620,6 @@
         if (counter > 15) {
           clearInterval(interval);
           spinningSlot = false;
-          // 結果判定
           const r1 = reel1.textContent;
           const r2 = reel2.textContent;
           const r3 = reel3.textContent;
@@ -484,11 +657,7 @@
 
       setTimeout(() => {
         const rand = Math.random();
-        let outcome = 'RED';
-        if (rand < 0.08) outcome = 'GREEN';
-        else if (rand < 0.54) outcome = 'RED';
-        else outcome = 'BLACK';
-
+        let outcome = rand < 0.08 ? 'GREEN' : (rand < 0.54 ? 'RED' : 'BLACK');
         resultTxt.textContent = outcome === 'GREEN' ? '0' : (outcome === 'RED' ? '🔴' : '⚫');
         resultTxt.style.opacity = '1';
 
@@ -503,11 +672,7 @@
     });
 
     // --- ミニゲーム 3: クラッシュ・ロケット ---
-    let crashActive = false;
-    let crashMultiplier = 1.0;
-    let crashBustPoint = 2.0;
-    let crashInterval = null;
-
+    let crashActive = false, crashMultiplier = 1.0, crashBustPoint = 2.0, crashInterval = null;
     const multDisp = document.getElementById('multiplierDisplay');
     const startCrashBtn = document.getElementById('startCrashBtn');
     const cashoutBtn = document.getElementById('cashoutBtn');
@@ -520,7 +685,7 @@
 
       crashActive = true;
       crashMultiplier = 1.0;
-      crashBustPoint = 1.1 + Math.pow(Math.random(), 2) * 12; // 爆発倍率
+      crashBustPoint = 1.1 + Math.pow(Math.random(), 2) * 12;
       startCrashBtn.disabled = true;
       cashoutBtn.disabled = false;
       rocketIcon.textContent = '🚀';
@@ -531,12 +696,12 @@
         playTone(300 + crashMultiplier * 40, 'triangle', 0.04, 0.04);
 
         if (crashMultiplier >= crashBustPoint) {
-          // 爆発！
           clearInterval(crashInterval);
           crashActive = false;
           startCrashBtn.disabled = false;
           cashoutBtn.disabled = true;
           rocketIcon.textContent = '💥 CRASH!!';
+          triggerScreenShake(14);
           playTone(100, 'sawtooth', 0.4, 0.3);
         }
       }, 80);
@@ -554,19 +719,255 @@
       alert(`💰 利確成功!! ${crashMultiplier.toFixed(2)}倍 で +${gained.toLocaleString()} CHIPS 獲得！`);
     });
 
-    // --- ミニゲーム 4: PeerJS PvP オンライン対戦 ---
-    let peer = null;
-    let conn = null;
+    // --- ミニゲーム 4: ブラックジャック [NEW] ---
+    let deck = [], playerHand = [], dealerHand = [], bjBet = 5000;
+    const dealerCardsDiv = document.getElementById('dealerCards');
+    const playerCardsDiv = document.getElementById('playerCards');
+    const dealerScoreSpan = document.getElementById('dealerScore');
+    const playerScoreSpan = document.getElementById('playerScore');
+    const bjMessage = document.getElementById('bjMessage');
+    const bjDealBtn = document.getElementById('bjDealBtn');
+    const bjHitBtn = document.getElementById('bjHitBtn');
+    const bjStandBtn = document.getElementById('bjStandBtn');
 
+    function createDeck() {
+      const suits = ['♠', '♥', '♦', '♣'];
+      const values = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+      deck = [];
+      for (let s of suits) {
+        for (let v of values) {
+          let score = parseInt(v);
+          if (['J','Q','K'].includes(v)) score = 10;
+          if (v === 'A') score = 11;
+          deck.push({ s, v, score });
+        }
+      }
+      deck.sort(() => Math.random() - 0.5);
+    }
+
+    function calcHand(hand) {
+      let sum = 0, aces = 0;
+      for (let c of hand) {
+        sum += c.score;
+        if (c.v === 'A') aces++;
+      }
+      while (sum > 21 && aces > 0) {
+        sum -= 10;
+        aces--;
+      }
+      return sum;
+    }
+
+    function renderBJ() {
+      dealerCardsDiv.innerHTML = dealerHand.map((c, i) => 
+        (i === 1 && bjHitBtn.disabled === false) 
+          ? `<span class="px-2.5 py-1 bg-slate-800 rounded-lg border border-slate-700">🂠</span>`
+          : `<span class="px-2.5 py-1 bg-slate-800 rounded-lg border border-slate-700 font-mono">${c.s}${c.v}</span>`
+      ).join('');
+
+      playerCardsDiv.innerHTML = playerHand.map(c => 
+        `<span class="px-2.5 py-1 bg-slate-800 rounded-lg border border-slate-700 font-mono text-cyan-300">${c.s}${c.v}</span>`
+      ).join('');
+
+      playerScoreSpan.textContent = calcHand(playerHand);
+      dealerScoreSpan.textContent = (bjHitBtn.disabled === false) ? dealerHand[0]?.score : calcHand(dealerHand);
+    }
+
+    bjDealBtn.addEventListener('click', () => {
+      if (userChips < bjBet) return;
+      initAudio();
+      updateChips(-bjBet);
+      createDeck();
+      playerHand = [deck.pop(), deck.pop()];
+      dealerHand = [deck.pop(), deck.pop()];
+
+      bjDealBtn.disabled = true;
+      bjHitBtn.disabled = false;
+      bjStandBtn.disabled = false;
+      bjMessage.textContent = 'HIT（もう1枚）か STAND（勝負）を選択！';
+      renderBJ();
+
+      if (calcHand(playerHand) === 21) {
+        bjStand();
+      }
+    });
+
+    bjHitBtn.addEventListener('click', () => {
+      initAudio();
+      playerHand.push(deck.pop());
+      playTone(600, 'triangle', 0.08, 0.08);
+      renderBJ();
+
+      if (calcHand(playerHand) > 21) {
+        bjEnd('💀 バスト（21超え）で敗北...', 0);
+      }
+    });
+
+    function bjStand() {
+      initAudio();
+      while (calcHand(dealerHand) < 17) {
+        dealerHand.push(deck.pop());
+      }
+      renderBJ();
+
+      const pScore = calcHand(playerHand);
+      const dScore = calcHand(dealerHand);
+
+      if (dScore > 21 || pScore > dScore) {
+        bjEnd(`🎉 勝利!! +${(bjBet * 2).toLocaleString()} CHIPS!`, bjBet * 2);
+      } else if (pScore === dScore) {
+        bjEnd(`🤝 引き分け (PUSH) チップ返還`, bjBet);
+      } else {
+        bjEnd(`💀 ディーラーの勝ち...`, 0);
+      }
+    }
+    bjStandBtn.addEventListener('click', bjStand);
+
+    function bjEnd(msg, payout) {
+      bjMessage.textContent = msg;
+      bjDealBtn.disabled = false;
+      bjHitBtn.disabled = true;
+      bjStandBtn.disabled = true;
+      if (payout > 0) updateChips(payout);
+    }
+
+    // --- ミニゲーム 5: インフレパチンコ（内蔵） [NEW] ---
+    let pCanvas = null, pCtx = null, pBalls = [], pPins = [], pGates = [], pPockets = [];
+    let pAuto = false, pLastAuto = 0;
+
+    function initPachinko() {
+      pCanvas = document.getElementById('pachinkoCanvas');
+      pCtx = pCanvas.getContext('2d');
+      const rect = pCanvas.getBoundingClientRect();
+      pCanvas.width = rect.width * 2;
+      pCanvas.height = rect.height * 2;
+      pCtx.scale(2, 2);
+
+      const w = rect.width, h = rect.height;
+      pPins = [];
+      pGates = [];
+      pPockets = [];
+
+      for (let r = 0; r < 7; r++) {
+        const cols = (r % 2 === 1) ? 6 : 7;
+        const colGap = w / (cols + 1);
+        for (let c = 0; c < cols; c++) {
+          pPins.push({ x: (c + 1) * colGap, y: h * 0.18 + r * (h * 0.55 / 7), radius: 4.5 });
+        }
+      }
+
+      pGates.push({ x: w * 0.35, y: h * 0.38, w: 45, h: 20, mult: 2, label: 'x2' });
+      pGates.push({ x: w * 0.65, y: h * 0.38, w: 45, h: 20, mult: 2, label: 'x2' });
+      pGates.push({ x: w * 0.50, y: h * 0.58, w: 55, h: 22, mult: 3, label: 'x3!' });
+
+      const pW = w / 4;
+      pPockets.push({ x: 0, y: h * 0.88, w: pW, h: h * 0.12, mult: 0.5, label: '500' });
+      pPockets.push({ x: pW, y: h * 0.88, w: pW, h: h * 0.12, mult: 2, label: '2,000' });
+      pPockets.push({ x: pW * 2, y: h * 0.88, w: pW, h: h * 0.12, mult: 10, label: 'JACKPOT' });
+      pPockets.push({ x: pW * 3, y: h * 0.88, w: pW, h: h * 0.12, mult: 0.5, label: '500' });
+
+      requestAnimationFrame(pachinkoLoop);
+    }
+
+    function firePachinkoBall() {
+      if (userChips < 1000) return;
+      initAudio();
+      updateChips(-1000);
+      const w = pCanvas.getBoundingClientRect().width;
+      pBalls.push({ x: w * 0.5 + (Math.random() - 0.5) * 50, y: 15, vx: (Math.random() - 0.5) * 1.5, vy: 2, radius: 4 });
+    }
+
+    document.getElementById('pachinkoDropBtn').addEventListener('click', firePachinkoBall);
+    const pAutoBtn = document.getElementById('pachinkoAutoBtn');
+    pAutoBtn.addEventListener('click', () => {
+      pAuto = !pAuto;
+      pAutoBtn.textContent = `連射: ${pAuto ? 'ON 🔥' : 'OFF'}`;
+    });
+
+    function pachinkoLoop() {
+      if (!pCanvas || document.getElementById('pachinkoModal').classList.contains('hidden')) return;
+      const w = pCanvas.getBoundingClientRect().width;
+      const h = pCanvas.getBoundingClientRect().height;
+
+      if (pAuto && performance.now() - pLastAuto > 160) {
+        firePachinkoBall();
+        pLastAuto = performance.now();
+      }
+
+      pCtx.clearRect(0, 0, w, h);
+
+      // ピン描画
+      pCtx.fillStyle = '#94a3b8';
+      for (let p of pPins) {
+        pCtx.beginPath(); pCtx.arc(p.x, p.y, p.radius, 0, Math.PI*2); pCtx.fill();
+      }
+
+      // ゲート描画
+      for (let g of pGates) {
+        pCtx.strokeStyle = '#ec4899'; pCtx.strokeRect(g.x - g.w/2, g.y - g.h/2, g.w, g.h);
+        pCtx.fillStyle = '#fff'; pCtx.font = 'bold 10px sans-serif'; pCtx.textAlign = 'center';
+        pCtx.fillText(g.label, g.x, g.y + 3);
+      }
+
+      // ポケット描画
+      for (let pkt of pPockets) {
+        pCtx.strokeStyle = pkt.mult >= 10 ? '#f59e0b' : '#3b82f6';
+        pCtx.strokeRect(pkt.x, pkt.y, pkt.w, pkt.h);
+        pCtx.fillStyle = pkt.mult >= 10 ? '#f59e0b' : '#3b82f6';
+        pCtx.font = 'bold 10px sans-serif'; pCtx.textAlign = 'center';
+        pCtx.fillText(pkt.label, pkt.x + pkt.w/2, pkt.y + 18);
+      }
+
+      // ボール更新
+      for (let i = pBalls.length - 1; i >= 0; i--) {
+        const b = pBalls[i];
+        b.vy += 0.25;
+        b.x += b.vx;
+        b.y += b.vy;
+
+        if (b.x < b.radius || b.x > w - b.radius) b.vx *= -0.7;
+
+        for (let p of pPins) {
+          const dx = b.x - p.x, dy = b.y - p.y, dist = Math.sqrt(dx*dx + dy*dy);
+          if (dist < b.radius + p.radius) {
+            b.vx = (dx / dist) * 1.5; b.vy *= -0.6;
+            playTone(600, 'sine', 0.04, 0.03);
+          }
+        }
+
+        for (let g of pGates) {
+          if (b.x > g.x - g.w/2 && b.x < g.x + g.w/2 && b.y > g.y - g.h/2 && b.y < g.y + g.h/2) {
+            b.y += g.h;
+            pBalls.push({ x: b.x + 4, y: b.y, vx: 1.5, vy: 2, radius: 4 });
+            playTone(880, 'triangle', 0.08, 0.06);
+          }
+        }
+
+        if (b.y > h * 0.88) {
+          for (let pkt of pPockets) {
+            if (b.x >= pkt.x && b.x < pkt.x + pkt.w) {
+              const gained = Math.floor(1000 * pkt.mult);
+              updateChips(gained);
+              if (pkt.mult >= 10) triggerConfetti(25);
+            }
+          }
+          pBalls.splice(i, 1);
+          continue;
+        }
+
+        pCtx.fillStyle = '#f43f5e';
+        pCtx.beginPath(); pCtx.arc(b.x, b.y, b.radius, 0, Math.PI*2); pCtx.fill();
+      }
+
+      requestAnimationFrame(pachinkoLoop);
+    }
+
+    // --- ミニゲーム 6: PeerJS PvP オンライン対戦 ---
+    let peer = null, conn = null;
     try {
       peer = new Peer();
-      peer.on('open', id => {
-        document.getElementById('myPeerId').textContent = id;
-      });
-      peer.on('connection', c => {
-        conn = c;
-        setupConn();
-      });
+      peer.on('open', id => document.getElementById('myPeerId').textContent = id);
+      peer.on('connection', c => { conn = c; setupConn(); });
     } catch(e) {}
 
     document.getElementById('connectPeerBtn').addEventListener('click', () => {
@@ -611,7 +1012,7 @@
       }
     }
 
-    // --- アニメーションループ ---
+    // --- 3Dメインループ ---
     function animate() {
       requestAnimationFrame(animate);
 
@@ -620,25 +1021,56 @@
       const forward = new THREE.Vector3(-Math.sin(cameraAngleY), 0, -Math.cos(cameraAngleY));
       const right = new THREE.Vector3(Math.cos(cameraAngleY), 0, -Math.sin(cameraAngleY));
 
-      if (keys['w']) camera.position.addScaledVector(forward, moveSpeed);
-      if (keys['s']) camera.position.addScaledVector(forward, -moveSpeed);
-      if (keys['a']) camera.position.addScaledVector(right, -moveSpeed);
-      if (keys['d']) camera.position.addScaledVector(right, moveSpeed);
+      let isMoving = false;
+      if (keys['w']) { playerPos.addScaledVector(forward, moveSpeed); isMoving = true; }
+      if (keys['s']) { playerPos.addScaledVector(forward, -moveSpeed); isMoving = true; }
+      if (keys['a']) { playerPos.addScaledVector(right, -moveSpeed); isMoving = true; }
+      if (keys['d']) { playerPos.addScaledVector(right, moveSpeed); isMoving = true; }
 
-      // マップ境界制限
-      camera.position.x = Math.max(-35, Math.min(35, camera.position.x));
-      camera.position.z = Math.max(-35, Math.min(35, camera.position.z));
-      camera.position.y = 2.2;
+      // 境界制限
+      playerPos.x = Math.max(-35, Math.min(35, playerPos.x));
+      playerPos.z = Math.max(-35, Math.min(35, playerPos.z));
 
-      // カメラ向き更新
-      const targetLook = new THREE.Vector3(
-        camera.position.x - Math.sin(cameraAngleY) * Math.cos(cameraAngleX),
-        camera.position.y + Math.sin(cameraAngleX),
-        camera.position.z - Math.cos(cameraAngleY) * Math.cos(cameraAngleX)
-      );
-      camera.lookAt(targetLook);
+      // アバターの位置・向き
+      avatarGroup.position.set(playerPos.x, 0, playerPos.z);
+      avatarGroup.rotation.y = cameraAngleY;
+      if (isMoving) {
+        avatarGroup.position.y = Math.sin(performance.now() * 0.015) * 0.1; // 歩行アニメ
+      } else {
+        avatarGroup.position.y = 0;
+      }
 
-      // 台上のシンボル回転
+      // カメラ位置の更新 (一人称 vs 三人称)
+      if (isThirdPerson) {
+        // 三人称: プレイヤーの後ろ上方に配置
+        const camDist = 5.0;
+        const camHeight = 3.2;
+        camera.position.set(
+          playerPos.x + Math.sin(cameraAngleY) * camDist,
+          camHeight,
+          playerPos.z + Math.cos(cameraAngleY) * camDist
+        );
+        camera.lookAt(playerPos.x, 1.6, playerPos.z);
+      } else {
+        // 一人称
+        camera.position.set(playerPos.x, 2.2, playerPos.z);
+        const targetLook = new THREE.Vector3(
+          camera.position.x - Math.sin(cameraAngleY) * Math.cos(cameraAngleX),
+          camera.position.y + Math.sin(cameraAngleX),
+          camera.position.z - Math.cos(cameraAngleY) * Math.cos(cameraAngleX)
+        );
+        camera.lookAt(targetLook);
+      }
+
+      // 画面揺れ演出
+      if (screenShakeAmount > 0) {
+        camera.position.x += (Math.random() - 0.5) * screenShakeAmount * 0.04;
+        camera.position.y += (Math.random() - 0.5) * screenShakeAmount * 0.04;
+        screenShakeAmount *= 0.88;
+        if (screenShakeAmount < 0.2) screenShakeAmount = 0;
+      }
+
+      // オブジェクト回転
       stationMeshes.forEach(st => {
         st.topMesh.rotation.y += 0.02;
         st.topMesh.rotation.x += 0.01;
